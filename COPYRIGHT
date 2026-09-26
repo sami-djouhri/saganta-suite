@@ -1,0 +1,37 @@
+Saganta
+Copyright (C) 2026 Sami Djouhri
+
+Dieses Programm ist freie Software: Sie koennen es unter den Bedingungen der
+GNU Affero General Public License, Version 3, weitergeben und/oder veraendern,
+wie sie von der Free Software Foundation veroeffentlicht wurde. Der volle Text
+steht in der Datei LICENSE.
+
+Die Weitergabe erfolgt in der Hoffnung, dass sie nuetzlich ist, aber OHNE JEDE
+GEWAEHRLEISTUNG, sogar ohne die implizite Gewaehrleistung der MARKTGAENGIGKEIT
+oder EIGNUNG FUER EINEN BESTIMMTEN ZWECK.
+
+
+Warum diese Datei getrennt von LICENSE steht
+--------------------------------------------
+
+`LICENSE` ist der unveraenderte Text der AGPL-3.0 und gehoert der Free Software
+Foundation; an ihm wird nichts geaendert, auch nicht der Copyright-Vermerk in
+seinem Kopf (der betrifft den Lizenztext selbst, nicht diese Software). Wem das
+Programm gehoert, steht deshalb hier.
+
+Die Angabe ist nicht Schmuck, sondern die Grundlage fuer zweierlei:
+
+1. **Doppelte Lizenzierung.** Wer Saganta kommerziell nutzen will, ohne den
+   eigenen Code offenzulegen, braucht dafuer eine gesonderte Lizenz. Erteilen
+   kann sie nur, wer alle Rechte haelt.
+
+2. **Spaetere Aenderung der Lizenz.** Die Bedingungen kuenftiger Fassungen
+   festzulegen, steht ebenfalls nur dem Rechteinhaber zu. Was bereits unter der
+   AGPL veroeffentlicht wurde, bleibt unter ihr verfuegbar; das laesst sich nicht
+   zuruecknehmen und soll es auch nicht.
+
+★ Beides setzt voraus, dass die Rechte **ungeteilt** bleiben. Genau deshalb
+verlangt `CONTRIBUTING.md` von jedem fremden Beitrag eine ausdrueckliche
+Rechteeinraeumung: ohne sie gehoert der Beitrag seinem Verfasser, und von da an
+braucht jede der beiden Entscheidungen oben dessen Zustimmung. Diese Reihenfolge
+laesst sich nicht nachholen.

@@ -1,0 +1,11 @@
+teile/
+.env
+
+# Auch die Abwandlungen: .env allein deckt .env.bak oder eine Sicherung
+# vor einer Umstellung nicht ab. .env.example ist die Vorlage ohne Werte
+# und bleibt versioniert.
+.env.*
+!.env.example
+
+# Vom Einrichten angelegt: die Ablage des Briefkastens.
+daten/

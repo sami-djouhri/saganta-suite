@@ -1,0 +1,111 @@
+# Saganta Suite: die sechs Teile unter einem Dach.
+#
+# `include:` bindet die Composes der Teile ein, statt sie hierher zu kopieren.
+# Damit bleibt es EINE Wahrheit je Dienst: wer am Kalender etwas aendert, aendert
+# ihn im Kalender-Repo, und die Suite zieht beim naechsten `holen.sh
+# --aktualisieren` nach. Eine Kopie hier waere binnen Wochen abgedriftet, und
+# zwar unbemerkt, weil beide Seiten fuer sich gueltig geblieben waeren.
+#
+# Voraussetzung: `./holen.sh` hat die Teile nach ./teile/ geklont.
+#
+# ★ Ein Projekt, ein Satz Netze. Die Teile definieren `cc-proxy`, `cc-core` und
+# `cc-apps` seit dem 2026-09-06 lokal (vorher `external: true`), und
+# gleichnamige Netze verschmelzen beim Einbinden zu je einem. Die Trennung
+# bleibt trotzdem eine Aussage und ist nicht Schmuck:
+#   cc-proxy  was der Eingang erreichen darf
+#   cc-core   Anmeldung, Datenbanken, alles mit Geheimnissen
+#   cc-apps   die Apps untereinander (Kalender liest Vorrat, Briefing liest Tag)
+#
+# ★★ Der Projektname ist `saganta-suite` und nicht `saganta`, und das ist kein
+# Schoenheitsfehler. Auf dem Rechner, auf dem diese Suite entstanden ist, laeuft
+# bereits ein Compose-Projekt namens `saganta` (die Apps, einzeln betrieben).
+# Zwei Projekte mit demselben Namen sind fuer Docker EIN Projekt: ein
+# `docker compose up` hier haette die laufenden Container als zum eigenen
+# Projekt gehoerig betrachtet und sie ersetzt oder als verwaist zum Abraeumen
+# angeboten. Gefunden beim ersten `config`-Lauf, vor dem ersten `up`.
+name: saganta-suite
+
+include:
+  # ★ Nur die Basis-Datei, NICHT `docker-compose.override.lan.yml` daneben.
+  # Die zieht die Netze auf `external: true` und ist die Sicht dieses einen
+  # Hauses; hier soll die Suite ihre eigenen Netze anlegen.
+  - teile/saganta/infra/docker-compose.yml
+  - teile/kalender/docker-compose.yml
+  - teile/postfach/docker-compose.yml
+  - teile/lager/docker-compose.yml
+  - teile/mealprep/docker-compose.yml
+  - teile/fitness/docker-compose.yml
+
+services:
+  # ★★ Der Briefkasten steht in seinem eigenen Compose auf `restart: "no"`, und
+  # dort ist das richtig: sein Datenverzeichnis liegt im Haus, in dem er
+  # entstanden ist, in einem verschluesselten Tresor, der nach einem Neustart des
+  # Wirts zu ist. Ein selbsttaetig anlaufender Container faende dort ein leeres
+  # Verzeichnis, legte eine frische Datenbank an und schriebe die Post im
+  # Klartext daneben. Nicht anlaufen ist dann die richtige Antwort.
+  #
+  # In der Suite gibt es diesen Tresor nicht: `POSTFACH_DATEN` ist ein normales
+  # Verzeichnis, das `einrichten.sh` anlegt. Die Vorsichtsmassnahme schuetzt hier
+  # also nichts und kostet etwas: nach jedem Neustart des Wirts fehlt genau
+  # dieser eine von 28 Diensten, alle anderen kommen wieder, und nichts sagt es.
+  # Wer einen Tresor benutzt, setzt die Zeile in seiner eigenen
+  # docker-compose.override.yml zurueck auf "no".
+  briefkasten:
+    restart: unless-stopped
+
+  # Der eine Eingang. Von aussen erreichbar ist die Suite nur ueber ihn.
+  #
+  # ⚠️ Fuenf Teile veroeffentlichen daneben einen eigenen Port, jeweils auf
+  # 127.0.0.1: briefkasten 8101, kalender 8085, fitness 8094, lager 8095,
+  # mealprep 8096. Hier stand bis zum 2026-09-06 das Gegenteil ("die Teile
+  # veroeffentlichen selbst keinen Port"), was gemessen nicht stimmte. Nach
+  # aussen sind sie damit nicht erreichbar, aber zwei Folgen hat es doch:
+  # die Suite laesst sich nicht auf einem Wirt starten, auf dem schon einer
+  # dieser Ports belegt ist, und sie laesst sich nicht zweimal starten.
+  # `pruefen.py` meldet die Kollision, bevor der erste Container anlaeuft.
+  #
+  # Warum Caddy und nicht nginx: die Apps erwarten Unterdomaenen
+  # (`kalender.<domaene>`), nicht Pfade, und dafuer braucht es je Name ein
+  # Zertifikat. Caddy holt sie selbst und erneuert sie selbst. Mit nginx waere
+  # das ein zweiter Dienst plus ein Zeitgeber, den ein Selbsthoster auch noch
+  # betreiben muesste.
+  eingang:
+    image: caddy:2-alpine
+    container_name: saganta-eingang
+    restart: unless-stopped
+    ports:
+      - "${SAGANTA_HTTP_PORT:-80}:80"
+      - "${SAGANTA_HTTPS_PORT:-443}:443"
+    environment:
+      # Wird im Caddyfile eingesetzt. Ohne Wert bricht der Start ab, statt eine
+      # Suite unter einem Platzhalternamen hochzufahren, den niemand erreicht.
+      SAGANTA_DOMAENE: ${SAGANTA_DOMAENE:?SAGANTA_DOMAENE setzen, z.B. saganta.example.org}
+      # Leer = Caddy holt echte Zertifikate von Let's Encrypt. Auf "internal"
+      # gesetzt = Caddys eigene CA, fuer den Betrieb im Heimnetz ohne
+      # oeffentlichen Namen. Dann warnt der Browser einmal.
+      SAGANTA_TLS: ${SAGANTA_TLS:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - cc-proxy
+      - cc-core
+      - cc-apps
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+# Die Teile bringen ihre eigenen Netzdefinitionen mit und die verschmelzen mit
+# diesen. Hier stehen sie, damit der Eingang sie auch dann findet, wenn ein Teil
+# gerade nicht eingebunden ist.
+networks:
+  cc-proxy:
+  cc-core:
+  cc-apps:

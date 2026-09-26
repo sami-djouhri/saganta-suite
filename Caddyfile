@@ -1,0 +1,201 @@
+# Der Eingang der Suite. Eine Unterdomaene je App, weil die Apps das so
+# erwarten: sie setzen absolute Pfade und Cookies fuer ihren eigenen Namen, ein
+# Pfad-Router (`/kalender/`) braeuchte in jeder App eine Basis-Pfad-Konfiguration.
+#
+# Die Zuordnung ist nicht erfunden, sondern aus dem laufenden Betrieb
+# uebernommen (dev-portal nginx.conf, `map $host $saganta_upstream`), damit die
+# veroeffentlichte Fassung dieselben Namen benutzt wie die betriebene.
+#
+# {$SAGANTA_DOMAENE} kommt aus der .env, {$SAGANTA_TLS} ist leer (echte
+# Zertifikate von Let's Encrypt) oder "internal" (Caddys eigene CA fuers
+# Heimnetz).
+{
+	# Ohne diese Zeile wuerde Caddy fuer jeden Namen ein Zertifikat anfordern,
+	# auch beim Ausprobieren auf einem Rechner ohne oeffentlichen Namen, und
+	# nach ein paar Fehlversuchen sperrt Let's Encrypt fuer eine Woche.
+	admin :2019
+	email {$SAGANTA_EMAIL:admin@localhost}
+}
+
+# ── Gemeinsame Bausteine ──────────────────────────────────────────────────
+
+(tls_wahl) {
+	tls {$SAGANTA_TLS}
+}
+
+# Der Anmelde-Nachweis. ★ Gilt nur fuer die beiden nativen Backends, die keine
+# eigene Saganta-Anmeldung haben (Kalender und Briefkasten sprechen ihr eigenes
+# Verfahren). Ohne diesen Block waeren sie ueber ihre Unterdomaene ohne
+# Anmeldung erreichbar, waehrend die Saganta-Oberflaechen davor geschuetzt sind.
+# Gegenstueck zum `auth_request` im dev-portal.
+(anmeldung_noetig) {
+	forward_auth saganta-shell-api:8000 {
+		uri /api/auth/check
+		copy_headers X-Saganta-Sub X-Saganta-Sub-Sig
+	}
+}
+
+# ── Die Oberflaechen ──────────────────────────────────────────────────────
+
+# ★★ Die Schale hat GENAU EINEN Namen, und der nackte Name leitet dorthin.
+#
+# Bis zum 2026-09-12 stand hier `{$SAGANTA_DOMAENE}, shell.{$SAGANTA_DOMAENE}`,
+# die Schale war also unter zwei Namen erreichbar. SvelteKit kennt aber nur
+# einen `ORIGIN` und vergleicht ihn bei jedem Formular-POST mit dem Origin des
+# Browsers: wer der Anleitung folgte und `https://<domaene>` aufrief, bekam auf
+# Anmeldung und Registrierung „Cross-site POST form submissions are forbidden".
+# Lesen ging, anmelden nicht, und der Unterschied war von aussen nicht zu
+# sehen. Eine Weiterleitung loest das an der Wurzel: es gibt nur noch einen
+# Origin, unter dem die Schale antwortet.
+{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	redir https://shell.{$SAGANTA_DOMAENE}{uri} permanent
+}
+
+shell.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+
+	# ★★ `/api/auth/*` gehoert dem Anmeldedienst, nicht der Schale. Der Dienst
+	# muss vom BROWSER erreichbar sein, nicht nur von Dienst zu Dienst: der
+	# Bestaetigungslink einer Registrierung und der Link aus einer
+	# Passwort-Ruecksetzung zeigen beide dorthin. Ohne diese Zeile trug der
+	# Bestaetigungslink `auth.<domaene>`, einen Namen, den der Eingang nicht
+	# bedient, und das frisch angelegte Konto blieb dauerhaft ausgesperrt
+	# (gemessen 2026-09-12). Die Schale hat unter /api/ keine eigenen Routen.
+	handle /api/auth/* {
+		reverse_proxy saganta-auth:3000
+	}
+	handle {
+		reverse_proxy saganta-shell:3000
+	}
+}
+
+news.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-news:3000
+}
+
+projectdeck.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-projectdeck:3000
+}
+
+notizen.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-notizen:3000
+}
+
+lager.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-lager:3000
+}
+
+mealprep.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-mealprep:3000
+}
+
+fitness.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-fitness:3000
+}
+
+post.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-post:3000
+}
+
+# ★★ Der Kalender hat ZWEI Adressen, und beide werden gebraucht:
+# `kalender.<domaene>` ist die Saganta-Oberflaeche, `calendar.<domaene>` weiter
+# unten der native Dienst dahinter. Dieser Eintrag hat bis zum 2026-09-12
+# gefehlt, waehrend `saganta-kalender` lief: der Container war gesund, die
+# Kachel „Kalender" in der Schale zeigte auf einen Namen, den der Eingang nicht
+# bediente, und der Browser meldete das als Namensfehler. Ein fehlender Vhost
+# faellt nirgends auf, weil kein Dienst dabei rot wird.
+#
+# `/api/` geht an den BFF, nicht an die Oberflaeche. Uebernommen aus dem
+# laufenden Betrieb (dev-portal): die SvelteKit-App hat unter /api/ keine
+# eigenen Routen, und ein eigener Vhost fuer den BFF waere ein weiterer Name,
+# den ein Selbsthoster in DNS und Zertifikat pflegen muesste.
+kalender.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	handle /api/* {
+		reverse_proxy saganta-kalender-bff:8000
+	}
+	handle {
+		reverse_proxy saganta-kalender:3000
+	}
+}
+
+# Die Dateiablage. Gleicher Fall wie der Kalender: der Dienst lief, nur
+# erreichbar war er nicht.
+assets.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-assets:3000
+}
+
+# ★ Das Tagebuch verschluesselt im Browser und braucht dafuer WebCrypto, das
+# der Browser nur im sicheren Kontext freigibt. Ueber diesen Vhost geht es,
+# ueber http://IP:Port nicht, und der Fehler sieht dann wie eine falsche
+# Passphrase aus. Auch mit `SAGANTA_TLS=internal` ist die Bedingung erfuellt,
+# sobald man Caddys CA einmal annimmt.
+tagebuch.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-tagebuch:3000
+}
+
+# ── Die Schnittstellen ────────────────────────────────────────────────────
+
+api.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-shell-api:8000
+}
+
+news-api.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-news-api:8000
+}
+
+projectdeck-api.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-projectdeck-api:8000
+}
+
+assets-api.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-assets-api:8000
+}
+
+notizen-api.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	reverse_proxy saganta-notizen-api:8000
+}
+
+# ── Die beiden nativen Backends ───────────────────────────────────────────
+# Hier zeigt der Eingang direkt auf den Dienst, nicht auf ein Saganta-Frontend.
+# Deshalb steht davor der Anmelde-Nachweis.
+
+calendar.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	import anmeldung_noetig
+	reverse_proxy kalender:8085
+}
+
+mail.{$SAGANTA_DOMAENE} {
+	import tls_wahl
+	import anmeldung_noetig
+	# 25 MB, weil hier Scans hochgeladen werden. Caddys Vorgabe waere
+	# unbegrenzt; der Briefkasten selbst deckelt bei 20 MB je Datei.
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy briefkasten:8000
+}
+
+# ★ Nicht eingetragen, obwohl im Haus vorhanden:
+#
+#   auth.<domaene>      Im Haus liegt davor Authelia. Die Suite braucht das
+#                       nicht: die Anmeldung macht better-auth im
+#                       saganta-Teil, ein zweites Anmeldesystem waere fuer
+#                       einen Selbsthoster nur eine weitere Huerde.
+#   nachrichten.<...>   Ein eigener Dienst, nicht Teil der Suite.
