@@ -42,12 +42,12 @@ people brings obligations that do not fit a one-person operation.
 
 | Part | What it does |
 |---|---|
-| `saganta` | shell, sign-in, news, notes, projects, mail and diary front ends |
-| `kalender` | appointments, tasks, habits, day type |
-| `postfach` | scanning letters, OCR, filing |
-| `lager` | household inventory |
-| `mealprep` | recipes, weekly plan, shopping list |
-| `fitness` | training and progress |
+| [`saganta`](https://github.com/sami-djouhri/saganta) | shell, sign-in, news, notes, projects, mail and diary front ends |
+| [`kalender`](https://github.com/sami-djouhri/kalender) | appointments, tasks, habits, day type |
+| [`postfach`](https://github.com/sami-djouhri/postfach) | scanning letters, OCR, filing |
+| [`lager`](https://github.com/sami-djouhri/lager) | household inventory |
+| [`mealprep`](https://github.com/sami-djouhri/mealprep) | recipes, weekly plan, shopping list |
+| [`fitness`](https://github.com/sami-djouhri/fitness) | training and progress |
 
 Each stays a repository of its own, because each stands on its own: the calendar
 is run elsewhere as a single service. `holen.sh` clones them into `teile/`;
