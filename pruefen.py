@@ -23,6 +23,14 @@ die hier gesucht werden, machen alle einen gesunden Eindruck:
    davon nur eine Zeile im Protokoll oder gar nichts.
 6. Ein Dienst hat keine Neustart-Regel. Nach einem Neustart des Wirts kommen
    alle wieder, dieser nicht, und die Uebersicht meldet weiter eine hohe Zahl.
+7. Ein Teil unter `teile/` ist gegenueber seinem Repo zurueckgefallen. Das ist
+   der stillste Fall von allen: `teile/` ist absichtlich nicht versioniert,
+   ein Klon veraltet ohne jedes Anzeichen, und wer dort hineinsieht, haelt den
+   alten Stand fuer den Stand der Suite. Gemessen am 2026-09-27 lagen alle
+   sechs Klone zwischen 7 und 32 Commits hinter ihrem Gitea-Zweig, und drei
+   von ihnen trugen deshalb noch eine Vorlagen-CSS samt Google-Fonts-Abruf,
+   die in den Quell-Repos am selben Tag entfernt worden war. Ein Spiegel, der
+   schweigend zurueckfaellt, sieht aus wie eine zweite Wahrheit.
 
 Nutzung:  SAGANTA_DOMAENE=beispiel.test python3 pruefen.py
 Rueckgabe: 0 = alles gut, 1 = mindestens ein Befund
@@ -623,13 +631,53 @@ def pruefe_kalender_zustand():
     return []
 
 
+def pruefe_teile_stand():
+    """Wie weit ist jeder Klon unter teile/ hinter seinem Zweig?
+
+    Bewusst OHNE Netzzugriff: kein `git fetch`. Gemessen wird gegen die zuletzt
+    geholten Fernzweige, die im Klon schon liegen. Ein Pruefskript, das ins Netz
+    geht, scheitert ohne Netz und blockiert dann eine Inbetriebnahme, die sonst
+    laufen wuerde. Wer den Stand frisch will, ruft vorher `./holen.sh
+    --aktualisieren`; wer es nicht tut, sieht hier mindestens den Stand vom
+    letzten Mal.
+    """
+    befunde = []
+    if not TEILE.is_dir():
+        return ["teile/ fehlt ganz: erst ./holen.sh"]
+    for teil in sorted(p.name for p in TEILE.iterdir() if (p / ".git").exists()):
+        pfad = TEILE / teil
+        fern = None
+        for kandidat in ("gitea/main", "origin/main", "gitea/master", "origin/master"):
+            p = subprocess.run(["git", "rev-parse", "--verify", "--quiet", kandidat],
+                               cwd=pfad, capture_output=True, text=True)
+            if p.returncode == 0:
+                fern = kandidat
+                break
+        if fern is None:
+            befunde.append(f"{teil}: kein Fernzweig im Klon, Stand nicht pruefbar")
+            continue
+        p = subprocess.run(["git", "rev-list", "--count", f"HEAD..{fern}"],
+                           cwd=pfad, capture_output=True, text=True)
+        if p.returncode != 0:
+            befunde.append(f"{teil}: Stand nicht lesbar ({p.stderr.strip()[:80]})")
+            continue
+        hinter = int(p.stdout.strip() or 0)
+        if hinter:
+            befunde.append(
+                f"{teil}: {hinter} Commit(s) hinter {fern}. "
+                f"Der Klon unter teile/ ist nicht versioniert und veraltet lautlos; "
+                f"nachziehen mit ./holen.sh --aktualisieren")
+    return befunde
+
+
 def main():
     print("== Suite pruefen")
     d = compose_config()
     print(f"  Compose gueltig: {len(d['services'])} Dienste")
 
     befunde = (pruefe_eingang(d) + pruefe_start(d) + pruefe_geheimnisse()
-               + pruefe_adressen(d) + pruefe_neustart(d) + pruefe_kalender_zustand())
+               + pruefe_adressen(d) + pruefe_neustart(d) + pruefe_kalender_zustand()
+               + pruefe_teile_stand())
 
     print()
     if befunde:

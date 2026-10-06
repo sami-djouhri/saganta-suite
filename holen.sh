@@ -77,7 +77,12 @@ holen() {
 }
 
 aktualisieren() {
-  basis_pruefen
+  # ★ KEIN basis_pruefen. Ein vorhandener Klon kennt seine Herkunft selbst, der
+  # Pull laeuft ueber dessen Fernzweig. Bis 2026-09-27 verlangte dieser Zweig
+  # trotzdem SAGANTA_GIT_BASIS und brach ohne die Variable ab -- also genau der
+  # Weg, den README und Pruefskript zum Nachziehen nennen, scheiterte an einer
+  # Angabe, die er nicht braucht. Wer nur aktualisiert, soll nichts setzen
+  # muessen; `holen` braucht die Basis weiterhin, dort entsteht die Adresse.
   for t in "${TEILE[@]}"; do
     [[ -d $ZIEL/$t/.git ]] || { echo "== $t fehlt, erst ./holen.sh"; continue; }
     # Nur wenn sauber: ein Pull ueber lokale Aenderungen hinweg ist der

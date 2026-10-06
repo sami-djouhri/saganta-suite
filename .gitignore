@@ -9,3 +9,6 @@ teile/
 
 # Vom Einrichten angelegt: die Ablage des Briefkastens.
 daten/
+
+# Vom Lauf des Pruefskripts.
+__pycache__/
